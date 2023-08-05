@@ -1,0 +1,12 @@
+{
+    "presets": ["next/babel"],
+
+    "plugins": [
+      ["transform-imports", {
+        "@gapi-script": {
+          "transform": "@gapi-script/dist/esm/$1.js"
+        }
+      }]
+    ]
+  }
+  

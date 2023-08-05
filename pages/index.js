@@ -1,118 +1,166 @@
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
+import Chat from "@/components/chat";
+import Head from "next/head";
+import custombg from "/styles/bg.module.css";
+import { useState } from "react";
+import { useEffect } from "react";
+import { animateScroll as scroll } from 'react-scroll';
+import { ClockLoader } from 'react-spinners';
+import SelectSource from "@/components/selectSource";
 
-const inter = Inter({ subsets: ['latin'] })
+const prompts = 
+  {
+      name: "AI assistant",
+      request : {
+        model: "text-davinci-003",
+        prompt: "",
+        temperature: 0.9,
+        max_tokens: 150,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0.6,
+        stop: [" Human:", " AI:"],
+      }
+  }
+
+export {prompts}; 
 
 export default function Home() {
+  const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
+  // const [currentPrompt, setCurrentPrompt] = useState(`AI assistant`);
+  const [userInput,setUserInput] = useState("");
+  const messageType = {me: "me", openAI: "openAI"};
+  const currentPrompt = `AI assistant`
+  const [openDrive, setOpenDrive] = useState(false);
+
+  useEffect(() => {
+    scroll.scrollToBottom({
+        containerId: "chat",
+        duration: 250,
+      });
+  }, [messages])
+
+  function clearChat() {
+    setMessages([]);
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setLoading(true);
+    const instructionPrompt = `The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.
+    \nHuman: Hello, who are you?
+    \nAI: I am an AI created by OpenAI. How can I help you today?
+    \nHuman: ${userInput}
+    \nAI:`
+    let tempMessages = [...messages, {user: `${messageType.me}`, message: `${userInput}`}];
+    setMessages(tempMessages);
+    setUserInput("");
+
+    try {
+      const response = await fetch("api/generate",{
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({input: `${messages.length === 0 ? instructionPrompt : tempMessages.map(m => m.message).join(" ")}`, prompt: currentPrompt})
+      });
+      
+      // If we get unsuccessful response
+      const data = await response.json();
+      if (response.status !== 200) {
+        throw data.error || new Error(`Request failed with status ${response.status}`);
+      }
+      setMessages([...tempMessages, {user: messageType.openAI, message: `${data.openAI && data.openAI.trimStart()}`, image: data.image }]);
+      // Set loading animation to false
+      setLoading(false);
+    } 
+    catch (error) {
+      // Set loading animation to false
+      setLoading(false);
+      // Consider implementing your own error handling logic here
+      console.error(error);
+      alert(error.message);
+    }
+  }
+
   return (
-    <main
-      className={`flex min-h-screen flex-col items-center justify-between p-24 ${inter.className}`}
-    >
-      <div className="z-10 w-full max-w-5xl items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">pages/index.js</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{' '}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
-        </div>
+    <>
+      <Head>
+          <title>ChatGPT</title>
+          <link rel="icon" href="/openai.png"/>
+      </Head>
+      <div className={`w-full min-h-full ${custombg.customBg}`}>
+        <div className="flex">
+          <div className="bg-gray-800 h-screen w-1/5 p-2">
+            <div>
+              <div>
+                <div className="text-gray-100 flex items-center text-xl p-3  bg-gray-900 rounded-md border border-slate-600 shadow-md m-1 hover:bg-gray-700" onClick={clearChat}>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m6-6H6" />
+                    </svg>
+                    <h2 className="text-sm px-1">
+                        New chat
+                    </h2>
+                </div>
+              </div>
+            </div>
+          </div> 
+          <div className="w-4/5 relative">
+            <div id="chat" className="h-[90vh] overflow-auto scrollbar">
+              {messages.length > 0 && 
+                messages.map((user, index)=>(
+                  <Chat key={index} user={user}/>
+                ))
+              }
+            </div>
+            <div>
+              <div className="p-5 absolute bottom-0 right-0 left-0">
+                <div className="flex-shrink-0">
+                  <button
+                    className="flex items-center justify-center w-4 h-4 rounded-full bg-gray-100"
+                    onClick={() => {setOpenDrive(true)
+                    }}
+                    disabled={loading}
+                  >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="20"
+                    height="20"
+                    fill="currentColor"
+                    className="bi bi-plus"
+                    viewBox="0 0 16 16"
+                  >
+                    {" "}
+                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z" />{" "}
+                  </svg>
+                  </button>
+                </div>
+                <div className="flex justify-center mb-2">
+                  {/* ClocLoader */}
+                  <ClockLoader size={20} color={"#F3F4F6"} loading={loading} />
+                </div>
+                <form className="relative" onSubmit={submit}>
+                  <input 
+                    type="text"
+                    placeholder="Start chatting"
+                    value={userInput} 
+                    required
+                    onChange={(e)=>setUserInput(e.target.value)} 
+                    rows="1" 
+                    className="block p-2.5 w-full text-sm text-gray-50 bg-gray-700 rounded-lg focus:outline-none ring-gray-500 focus:border-gray-500 shadow-md"
+                  />  
+                  <button type="submit" className="right-2 bottom-3 absolute pr-2" >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="gray" className="w-5 h-5">
+                      <path d="M3.105 2.289a.75.75 0 00-.826.95l1.414 4.925A1.5 1.5 0 005.135 9.25h6.115a.75.75 0 010 1.5H5.135a1.5 1.5 0 00-1.442 1.086l-1.414 4.926a.75.75 0 00.826.95 28.896 28.896 0 0015.293-7.154.75.75 0 000-1.115A28.897 28.897 0 003.105 2.289z" />
+                    </svg>
+                  </button>
+                </form> 
+              </div>
+            </div>
+          </div> 
+        </div> 
       </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700/10 after:dark:from-sky-900 after:dark:via-[#0141ff]/40 before:lg:h-[360px]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Discover and deploy boilerplate example Next.js&nbsp;projects.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{' '}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
-      </div>
-    </main>
+      {openDrive?<SelectSource/>:<></>}
+    </>
   )
 }
